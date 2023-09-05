@@ -10,6 +10,7 @@ class AssertionTrueVisitor(WarningNodeVisitor):
     def __init__(self):
         super().__init__()
         self.asign = False
+        self.variable = 0
 
     # def visit_Call(self, node: Call):
     #     if node.func.attr == 'assertTrue':
@@ -29,6 +30,7 @@ class AssertionTrueVisitor(WarningNodeVisitor):
                 if isinstance(assigned_value, Constant) and assigned_value.value == True:
                     print("--------yey-------")
                     self.asign = True
+                    self.variable = variable_name
 
     def visit_Call(self, node):
         print("holaaa")
@@ -36,8 +38,9 @@ class AssertionTrueVisitor(WarningNodeVisitor):
             if node.args[0].value == True:
                 if node.func.attr == 'assertTrue':
                     self.addWarning('AssertTrueWarning', node.lineno, 'useless assert true detected')
-        elif isinstance(node.args[0], Name) and node.func.attr == 'assertTrue':
-            if self.asign == True:
+        #elif isinstance(node.args[0], Name) and isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == 'assertTrue':
+        elif isinstance(node.args[0], Name):
+            if self.asign == True and node.args[0].id == self.variable:
                 self.addWarning('AssertTrueWarning', node.lineno, 'useless assert true detected')
          
         NodeVisitor.generic_visit(self, node)
