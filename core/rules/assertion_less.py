@@ -8,14 +8,21 @@ class AssertionLessVisitor(WarningNodeVisitor):
     def __init__(self):
         super().__init__()
         self.assert_less = True
+ 
 
-    def visit_FunctionDef(self, node: FunctionDef):
+    def visit_Expr(self, node):
+        if isinstance(node.value, ast.Call):
+            if isinstance(node.value.func, ast.Attribute):
+                if node.value.func.attr in ('assertTrue', 'assertEquals'):
+                    self.assert_less = False
+        self.generic_visit(node)
+
+    def visit_FunctionDef(self, node):
         self.assert_less = True
-        if isinstance(node, ast.Expr) and isinstance(ast.value, ast.Call) and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == 'assertTrue':
-            self.assert_less = False
-        NodeVisitor.generic_visit(self, node)
-        if self.assert_less == True:
-            self.addWarning('AssertionLessWarning', node.lineno, 'it is an assertion less test')   
+        self.generic_visit(node)
+        if self.assert_less:
+            self.addWarning('AssertionLessWarning', node.lineno, 'it is an assertion less test')
+
 
 
 class AssertionLessTestRule(Rule):

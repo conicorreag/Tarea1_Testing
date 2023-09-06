@@ -20,20 +20,15 @@ class AssertionTrueVisitor(WarningNodeVisitor):
 
     def visit_Assign(self, node: Assign):
         if isinstance(node, ast.Assign):
-             print("-------entro------------")
              if isinstance(node.targets[0], ast.Name):
                 # Si el objetivo es una variable (Name), guarda el nombre y el valor asignado.
                 variable_name = node.targets[0].id
                 assigned_value = node.value
-                print("------------AQUIIIII-------------")
-                print(assigned_value)
                 if isinstance(assigned_value, Constant) and assigned_value.value == True:
-                    print("--------yey-------")
                     self.asign = True
                     self.variable = variable_name
 
     def visit_Call(self, node):
-        print("holaaa")
         if isinstance(node.args[0], NameConstant):
             if node.args[0].value == True:
                 if node.func.attr == 'assertTrue':
