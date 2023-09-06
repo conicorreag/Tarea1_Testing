@@ -1,100 +1,95 @@
-from _ast import Assign
+from _ast import Assign, Call
 from ast import *
 import ast
 from typing import Any
 from core.rewriter import RewriterCommand
 
+
+class DuplicatedSetupVisitor(NodeVisitor):
+    #  Implementar Clase
+
+    def __init__(self):
+        super().__init__()
+        self.method_lines = {}  # Un diccionario para rastrear las líneas de cada método
+        self.all_method_lines = {}  # Un diccionario para rastrear todas las líneas de cada método
+        self.duplicated_lines = []  # Lista de líneas repetidas en todos los métodos
+        self.repetidos = 0
+        self.no_mas = False
+
+    def visit_ClassDef(self, node):
+        self.generic_visit(node)
+        if self.all_method_lines:
+            first_method_name, first_method_lines = next(iter(self.all_method_lines.items()))
+            for line in first_method_lines:
+                is_duplicated = all(line in method_lines for method_lines in self.all_method_lines.values())
+                if is_duplicated and self.no_mas == False:
+                    self.duplicated_lines.append(line)
+                    self.repetidos += 1
+                else: 
+                    self.no_mas = True
+        return self.duplicated_lines
+
+
+    def visit_FunctionDef(self, node):
+        method_name = node.name
+        method_lines = []
+
+        for method_item in node.body:
+            method_item_str = ast.dump(method_item)
+            method_lines.append(method_item_str)
+
+        self.all_method_lines[method_name] = method_lines
+
+
+
 class ExtractSetupTransformer(NodeTransformer):
 
-
-    # def __init__(self):
-    #     self.duplicate_lines = {}
-
-    # def visit_FunctionDef(self, node):
-    #     if node.name != 'setUp':
-    #         # Recopila todas las líneas de código en el método actual
-    #         lines = [ast.dump(stmt) for stmt in node.body]
-    #         code_block = '\n'.join(lines)
-
-    #         # Si el bloque de código ya existe en otro método, guarda su nombre y contenido
-    #         if code_block in self.duplicate_lines:
-    #             self.duplicate_lines[code_block].append(node.name)
-    #         else:
-    #             self.duplicate_lines[code_block] = [node.name]
-
-    #     return node
-
-    # def visit_Module(self, node):
-    #     # Recorre los nodos del módulo (clases y funciones)
-    #     for item in node.body:
-    #         if isinstance(item, ast.ClassDef):
-    #             # Recorre los métodos de la clase
-    #             for method in item.body:
-    #                 if isinstance(method, ast.FunctionDef):
-    #                     # Si el bloque de código es duplicado, reemplaza el cuerpo del método
-    #                     if ast.dump(method) in self.duplicate_lines:
-    #                         method.body = [ast.Assign(
-    #                             targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=stmt.split('=')[0], ctx=ast.Store())],
-    #                             value=ast.parse(stmt.split('=')[1]).body[0].value,
-    #                         ) for stmt in ast.dump(method).split('\n')]
+    def __init__(self):
+        super().__init__()
+        self.duplicated_lines = []
+        self.duplicated_variables = []
         
-    #     print(ast.dump(node))
-    #     return node
+    def visit_ClassDef(self, node):
+        self.duplicated_lines = DuplicatedSetupVisitor().visit(node)
+        print("lineas duplicadas")
+        for i in self.duplicated_lines:
+            print(i)
+        self.generic_visit(node)
+        print("\n\ndespues generic")
+        print(ast.dump(node))
+
+        new_method = FunctionDef(name='setUp', args=arguments(args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]), body=[], decorator_list=[], returns=None)
 
 
 
+    def visit_FunctionDef(self, node):
+        lines_remove = []
 
+        for m in range(0, len(node.body)):
+            method_item_str = ast.dump(node.body[m])
+            if method_item_str in self.duplicated_lines:
+                lines_remove.append(node.body[m])
+                if isinstance(node.body[m], ast.Assign):
+                    variable = node.body[m].targets[0].id
+                    self.duplicated_variables.append(variable)
 
-
-
-
-
+        for i in lines_remove:
+            node.body.remove(i)
+     
+        self.generic_visit(node)
+        return node
     
-#     def __init__(self):
-#         super().__init__()
-#         self.setup_lines = []
-#         self.actual_func_node = 0
-#         self.actual_node_assign = 0
-#         self.final_setup = []  
-#         self.no_mas_repetidos = False
 
-#     def visit_FunctionDef(self, node):
-#         self.generic_visit(node)
-#         self.actual_func_node += 1
-#         self.actual_node_assign = 0
-#         if self.no_mas_repetidos == True or len(self.setup_lines)==len(self.final_setup):
-#             print("holaaa2")
-#             body_setup = []
-#             for setup in self.final_setup:
-#                 body_setup.append(Assign(targets=[Attribute(value=Name(id='self', ctx=Load()), attr=setup["id"], ctx=Store())], value=Constant(value=setup["value"])), )
-            
-#             return FunctionDef(name='setUp',
-#             args=arguments(args=[arg(arg='self')], defaults=[], kwonlyargs=[], kw_defaults=[],
-#                            vararg=None, kwarg=None, posonlyargs=[]),
-#             body=body_setup,
-#             decorator_list=[],
-#             returns=None)
+    def visit_Call(self, node):
+        for i in range(0, len(node.args)):
+            if isinstance(node.args[i], ast.Name):
+                if node.args[i].id in self.duplicated_variables:
+                    node.args[i] = Attribute(value=Name(id='self', ctx=Load()), attr=node.args[i].id, ctx=Load())
+        print("-------holaaaaa---------")
+        print("\nnodo cambiando variables")
+        print(ast.dump(node))
+        return node
         
-
-
-
-
-#     def visit_Assign(self, node):
-#         print("entrooooooo")
-#         if self.actual_func_node == 0:
-#             self.setup_lines.append({"id": node.targets[0].id, "value": node.value.value})
-#         else:
-#             if self.actual_node_assign < len(self.setup_lines):
-#                 if node.targets[0].id == self.setup_lines[self.actual_node_assign]["id"] and node.value.value == self.setup_lines[self.actual_node_assign]["value"] and self.no_mas_repetidos == False:
-#                     self.final_setup.append({"id": node.targets[0].id, "value": node.value.value})
-#                     self.actual_node_assign += 1
-#                 else:
-#                     self.no_mas_repetidos = True
-#         print("holaaaa")
-#         for s in self.final_setup:
-#             print(s)
-        
-       
 
 
 
